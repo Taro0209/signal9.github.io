@@ -1,0 +1,42 @@
+/*
+ * Global styles for the SIGNAL 9 WebXR experience.  Traditional CSS
+ * influences HTML overlay elements (none in this build) and text
+ * panels built with A‑Frame’s <a-plane> + <a-text> primitives using
+ * the `class` attribute.  Colours here are tuned for readability in
+ * dark environments.
+ */
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: sans-serif;
+  background-color: #0a0a0d;
+}
+
+/* Utility class applied to A‑Frame panels to give them a semi‑
+   transparent dark background and rounded corners.  These values are
+   referenced in game.js when creating UI panels. */
+.panel-background {
+  color: #e6e6e6;
+  background-color: rgba(15, 15, 20, 0.85);
+  border-radius: 0.02em;
+  padding: 0.02em;
+}
+
+/* Button styling for interactive VR panels. */
+.button {
+  background-color: #282c34;
+  color: #ffffff;
+  border: 0.002em solid #4c515c;
+  border-radius: 0.01em;
+  padding: 0.02em 0.04em;
+  text-align: center;
+}
+
+.button:hover {
+  background-color: #3c414d;
+}
