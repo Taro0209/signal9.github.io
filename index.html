@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>SIGNAL 9 WebXR Demo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Load A-Frame and optional extras -->
+  <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+  <!-- extras for physics or other features can be added later -->
+</head>
+<body>
+  <a-scene background="color: #222" vr-mode-ui="enterVRButton: true">
+    <a-assets>
+      <img id="staticTex" src="assets/textures/static.png">
+      <img id="metalTex" src="assets/textures/metal.png">
+    </a-assets>
+
+    <!-- Player and hands -->
+    <a-entity id="cameraRig" position="0 1.6 4">
+      <a-camera wasd-controls="acceleration: 5" look-controls></a-camera>
+    </a-entity>
+    <a-entity id="leftHand" hand-controls="hand: left; handModelStyle: lowPoly; color: #f2dec9"></a-entity>
+    <a-entity id="rightHand" hand-controls="hand: right; handModelStyle: lowPoly; color: #f2dec9"></a-entity>
+
+    <!-- Floor -->
+    <a-plane width="10" height="10" rotation="-90 0 0" material="src: #metalTex; repeat: 4 4; roughness: 1;"></a-plane>
+
+    <!-- CRT screen (static) -->
+    <a-plane id="screen" width="2" height="1.5" position="0 1.2 -3" material="src: #staticTex; opacity: 1;"></a-plane>
+
+    <!-- Knob -->
+    <a-cylinder id="knob" position="0 1.2 0" radius="0.05" height="0.1" color="#666"></a-cylinder>
+    <a-text value="Click knob to toggle static" position="0 2 -1" align="center" color="#ffffff" width="4"></a-text>
+
+    <!-- Blue light event -->
+    <a-sphere id="blueLight" position="1 2 -1.5" radius="0.1" color="#ff0000"></a-sphere>
+    <a-text value="Tap sphere for event" position="1 2.3 -1.5" align="center" color="#ffffff" width="2"></a-text>
+
+    <!-- Room walls -->
+    <a-plane width="10" height="3" position="0 1.5 -5" color="#111"></a-plane>
+    <a-plane width="10" height="3" position="-5 1.5 0" rotation="0 90 0" color="#111"></a-plane>
+    <a-plane width="10" height="3" position="5 1.5 0" rotation="0 -90 0" color="#111"></a-plane>
+    <a-plane width="10" height="3" position="0 1.5 5" rotation="0 180 0" color="#111"></a-plane>
+  </a-scene>
+
+  <script>
+    // Toggle static on the screen when the knob is clicked
+    AFRAME.registerComponent('toggle-static', {
+      init: function () {
+        const knob = document.querySelector('#knob');
+        const screen = document.querySelector('#screen');
+        let isStatic = true;
+        knob.addEventListener('click', () => {
+          isStatic = !isStatic;
+          screen.setAttribute('material', 'opacity', isStatic ? 1 : 0);
+        });
+      }
+    });
+    // Attach the component to scene once it's loaded
+    document.querySelector('a-scene').setAttribute('toggle-static', '');
+
+    // Blue light event: toggle colour and show/hide message
+    AFRAME.registerComponent('blue-event', {
+      init: function () {
+        const light = document.querySelector('#blueLight');
+        let active = false;
+        const scene = document.querySelector('a-scene');
+        light.addEventListener('click', () => {
+          active = !active;
+          if (active) {
+            light.setAttribute('color', '#0000ff');
+            const msg = document.createElement('a-text');
+            msg.setAttribute('id', 'blueMsg');
+            msg.setAttribute('value', 'Blue light! Follow the rules.');
+            msg.setAttribute('position', '0 2.5 -2');
+            msg.setAttribute('color', '#00aaff');
+            msg.setAttribute('align', 'center');
+            msg.setAttribute('width', '4');
+            scene.appendChild(msg);
+          } else {
+            light.setAttribute('color', '#ff0000');
+            const msg = document.querySelector('#blueMsg');
+            if (msg) { msg.parentNode.removeChild(msg); }
+          }
+        });
+      }
+    });
+    document.querySelector('a-scene').setAttribute('blue-event', '');
+  </script>
+</body>
+</html>
