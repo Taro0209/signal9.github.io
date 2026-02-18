@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SIGNAL 9: THE DEAD AIR ARCHIVE</title>
+  <link rel="stylesheet" href="css/style.css">
+
+  <!-- A-Frame 1.5.0 -->
+  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+  <!-- A-Frame Extras for locomotion -->
+  <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@7.4.0/dist/aframe-extras.min.js"></script>
+  <!-- A-Frame Environment (for sky/ground) -->
+  <!-- Note: Not using environment component to keep it custom -->
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════
+     LOADING SCREEN
+══════════════════════════════════════════════════════════════ -->
+<div id="loading-screen">
+  <h1>SIGNAL 9</h1>
+  <p>THE DEAD AIR ARCHIVE</p>
+  <p style="color:#444;font-size:0.65rem;margin-top:0.3rem;">WDRK-TV ◈ AUTHORIZED PERSONNEL ONLY</p>
+  <div id="loading-bar"><div id="loading-fill"></div></div>
+  <p id="loading-status" style="color:#444;font-size:0.75rem">INITIALIZING...</p>
+  <button id="enter-button">◈ ENTER ARCHIVE</button>
+  <p style="color:#222;font-size:0.6rem;margin-top:2rem">Use Meta Quest 3 or browser in desktop mode.<br>For full VR: open in Quest 3 browser, tap ⬜ to enter VR.</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SUBTITLE DISPLAY (overlaid on 2D)
+══════════════════════════════════════════════════════════════ -->
+<div id="subtitle-display" style="
+  position:fixed;bottom:10%;left:50%;transform:translateX(-50%);
+  background:rgba(0,0,0,0.75);color:#e8d8a0;font-family:'Courier New',monospace;
+  font-size:1rem;padding:0.5rem 1.5rem;border:1px solid #444;
+  opacity:0;transition:opacity 0.3s;pointer-events:none;z-index:9998;
+  max-width:80%;text-align:center;letter-spacing:0.1em;
+"></div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     A-FRAME SCENE
+══════════════════════════════════════════════════════════════ -->
+<a-scene
+  id="main-scene"
+  vr-mode-ui="enabled: true"
+  renderer="antialias: false; colorManagement: true; sortObjects: true; physicallyCorrectLights: false"
+  shadow="type: pcfsoft"
+  loading-screen="dotsColor: #cc2200; backgroundColor: #000000"
+  background="color: #000000">
+
+  <!-- Assets -->
+  <a-assets timeout="60000">
+    <img  id="tex-static"       src="assets/textures/static.png"           crossorigin="anonymous">
+    <img  id="tex-metal"        src="assets/textures/metal.png"            crossorigin="anonymous">
+    <!-- Audio -->
+    <audio id="snd-main-menu"   src="assets/audio/main_menu.mp3"           preload="auto"></audio>
+    <audio id="snd-atmosphere"  src="assets/audio/atmosphere.mp3"          preload="auto"></audio>
+    <audio id="snd-tension"     src="assets/audio/tension.mp3"             preload="auto"></audio>
+    <audio id="snd-footsteps"   src="assets/audio/entity_footsteps.mp3"    preload="auto"></audio>
+    <audio id="snd-jumpscare"   src="assets/audio/jumpscare.mp3"           preload="auto"></audio>
+    <!-- Models -->
+    <a-asset-item id="model-shrek" src="assets/models/Shrek.glb"></a-asset-item>
+  </a-assets>
+
+  <!-- ═══════════════════ PLAYER RIG ════════════════════════ -->
+  <a-entity id="rig" position="0 0 2">
+
+    <!-- Camera -->
+    <a-entity
+      id="player-camera"
+      camera
+      look-controls="pointerLockEnabled: false"
+      wasd-controls="enabled: false"
+      position="0 1.6 0">
+
+      <!-- Comfort vignette (simple dark plane in front of camera) -->
+      <a-entity id="vignette-overlay" visible="false">
+        <a-ring
+          position="0 0 -0.05"
+          radius-inner="0.25"
+          radius-outer="0.5"
+          material="color:#000000;opacity:0.6;transparent:true;side:double;depthTest:false">
+        </a-ring>
+      </a-entity>
+
+      <!-- In-world presence meter (diegetic HUD on camera) -->
+      <a-entity position="0.2 -0.15 -0.4">
+        <a-box width="0.08" height="0.04" depth="0.01" material="color:#000;opacity:0.9"></a-box>
+        <a-entity id="presence-meter-display"
+          text="value: SIGNAL 50%; align: center; color: #00ff00; width: 0.2"
+          position="0 0 0.006">
+        </a-entity>
+      </a-entity>
+    </a-entity>
+
+    <!-- ── LEFT HAND / CONTROLLER ──────────────────────────── -->
+    <a-entity
+      id="left-hand"
+      hand-controls="hand: left; handModelStyle: lowPoly; color: #f2dec9"
+      oculus-touch-controls="hand: left"
+      position="0 0 0">
+      <!-- Raycaster for menu interaction -->
+      <a-entity
+        raycaster="objects: .interactive; far: 5; showLine: true"
+        line="color: #cc2200; opacity: 0.5">
+      </a-entity>
+    </a-entity>
+
+    <!-- ── RIGHT HAND / CONTROLLER ─────────────────────────── -->
+    <a-entity
+      id="right-hand"
+      hand-controls="hand: right; handModelStyle: lowPoly; color: #f2dec9"
+      oculus-touch-controls="hand: right"
+      position="0 0 0">
+      <!-- Raycaster for menu interaction -->
+      <a-entity
+        raycaster="objects: .interactive; far: 5; showLine: true"
+        line="color: #aa1100; opacity: 0.5">
+      </a-entity>
+    </a-entity>
+
+  </a-entity>
+  <!-- End Player Rig -->
+
+  <!-- ═══════════════ LOCOMOTION COMPONENTS ═════════════════ -->
+  <!-- Teleport locomotion via blink -->
+  <a-entity
+    id="teleport-target"
+    geometry="primitive: ring; radiusInner: 0.2; radiusOuter: 0.25"
+    material="color: #00ff00; shader: flat"
+    position="0 0.01 0"
+    visible="false">
+  </a-entity>
+
+  <!-- ═══════════════ WRIST MENU ════════════════════════════ -->
+  <a-entity
+    id="wrist-menu-entity"
+    wrist-menu
+    visible="false"
+    position="0 0 0">
+    <!-- Attach to left wrist (will be moved via JS) -->
+    <a-box width="0.25" height="0.15" depth="0.01" material="color:#0a0a0a;opacity:0.95;transparent:true"></a-box>
+    <a-text value="WRIST MENU" align="center" color="#cc8866" width="0.8" position="0 0.04 0.01"></a-text>
+    <a-text id="wrist-mission" value="MISSION: 0" align="center" color="#666" width="0.6" position="0 0 0.01"></a-text>
+    <a-text id="wrist-signal" value="SIGNAL: 50%" align="center" color="#00ff00" width="0.6" position="0 -0.04 0.01"></a-text>
+  </a-entity>
+
+  <!-- ═══════════════ COMPLIANCE CHECKLIST ═════════════════ -->
+  <a-entity
+    id="checklist-display"
+    compliance-checklist
+    visible="false"
+    position="0 1.4 -0.6">
+    <a-box width="0.6" height="0.8" depth="0.01" material="color:#e8d8a0;opacity:0.97"></a-box>
+    <a-text
+      value="COMPLIANCE CHECKLIST&#10;&#10;If tone ≠ 1000Hz,&#10;  do not acknowledge it.&#10;If you hear your name,&#10;  say STATION ID ONLY.&#10;If light turns BLUE,&#10;  look at floor.&#10;Complete all segments.&#10;SIGNAL 9 MUST AIR."
+      align="left"
+      color="#333"
+      width="1.2"
+      wrap-count="30"
+      position="-0.25 0.3 0.01">
+    </a-text>
+  </a-entity>
+
+  <!-- ═══════════════ GLOBAL AUDIO ENTITIES ════════════════ -->
+  <!-- Main menu music -->
+  <a-entity id="audio-main-menu"
+    sound="src: #snd-main-menu; autoplay: false; loop: true; volume: 0.8; positional: false">
+  </a-entity>
+
+  <!-- Atmosphere – loops throughout the whole game -->
+  <a-entity id="audio-atmosphere"
+    sound="src: #snd-atmosphere; autoplay: false; loop: true; volume: 0.5; positional: false">
+  </a-entity>
+
+  <!-- Tension – random trigger, no loop -->
+  <a-entity id="audio-tension"
+    sound="src: #snd-tension; autoplay: false; loop: false; volume: 0.7; positional: false">
+  </a-entity>
+
+  <!-- Entity footsteps – positional, no loop -->
+  <a-entity id="audio-footsteps"
+    sound="src: #snd-footsteps; autoplay: false; loop: false; volume: 1.0; positional: true; distanceModel: linear; maxDistance: 8">
+  </a-entity>
+
+  <!-- Jumpscare sound – plays once -->
+  <a-entity id="audio-jumpscare"
+    sound="src: #snd-jumpscare; autoplay: false; loop: false; volume: 1.0; positional: false">
+  </a-entity>
+
+  <!-- ═══════════════ SHREK ENTITY ═══════════════════════════
+       Hidden by default. Shown during jumpscare + entity-near events.
+  ══════════════════════════════════════════════════════════ -->
+  <a-entity
+    id="shrek-entity"
+    gltf-model="#model-shrek"
+    visible="false"
+    scale="1 1 1"
+    position="0 0 -2"
+    rotation="0 180 0">
+  </a-entity>
+
+  <!-- SCENE ROOT IS INJECTED HERE BY JS -->
+
+</a-scene>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SCRIPTS
+══════════════════════════════════════════════════════════════ -->
+<script src="js/game.js"></script>
+<script src="js/scenes.js"></script>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// INITIALIZATION
+// ═══════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+  // Init save data
+  SIGNAL9.gameData = SIGNAL9.Save.load();
+  SIGNAL9.currentMission = SIGNAL9.gameData.currentMission || 0;
+
+  // Start loading screen sequence
+  SIGNAL9.showLoading();
+
+  // Scene loaded event
+  const scene = document.querySelector('a-scene');
+  scene.addEventListener('loaded', () => {
+    console.log('[SIGNAL9] A-Frame scene loaded');
+
+    // Attach locomotion to rig
+    const rig = document.getElementById('rig');
+    rig.setAttribute('smooth-locomotion', 'speed: 3');
+    rig.setAttribute('snap-turn', 'angle: 30');
+
+    // Set up controller button listeners
+    setupControllerButtons();
+
+    // Wrist menu tick update
+    setInterval(updateWristMenu, 500);
+
+    // ── AUDIO SYSTEM ──────────────────────────────────────
+    SIGNAL9.GameAudio.init();
+  });
+
+  // Prevent context menu in VR
+  document.addEventListener('contextmenu', e => e.preventDefault());
+});
+
+// ═══════════════════════════════════════════════════════════
+// GAME AUDIO MANAGER
+// Handles all real audio files: main menu music, atmosphere,
+// tension (random), entity footsteps, jumpscare.
+// ═══════════════════════════════════════════════════════════
+SIGNAL9.GameAudio = {
+  tensionTimer: null,
+  entityNearTimer: null,
+
+  init() {
+    // Play main menu music immediately
+    this.playMainMenu();
+    // Start random tension scheduler (won't fire during menu)
+    this._scheduleTension();
+  },
+
+  // ── MAIN MENU MUSIC ─────────────────────────────────────
+  playMainMenu() {
+    const el = document.getElementById('audio-main-menu');
+    if (el) el.components.sound.playSound();
+  },
+
+  stopMainMenu() {
+    const el = document.getElementById('audio-main-menu');
+    if (el) el.components.sound.stopSound();
+  },
+
+  // ── ATMOSPHERE (loops forever once game starts) ──────────
+  startAtmosphere() {
+    const el = document.getElementById('audio-atmosphere');
+    if (el) el.components.sound.playSound();
+  },
+
+  stopAtmosphere() {
+    const el = document.getElementById('audio-atmosphere');
+    if (el) el.components.sound.stopSound();
+  },
+
+  // ── TENSION (random intervals, only during missions) ─────
+  _scheduleTension() {
+    const minDelay = 25000;  // 25s minimum between hits
+    const maxDelay = 75000;  // 75s maximum
+    const delay = minDelay + Math.random() * (maxDelay - minDelay);
+    this.tensionTimer = setTimeout(() => {
+      // Only fire if we're actually in a mission (not menu, not ending)
+      if (SIGNAL9.currentMission >= 1 && SIGNAL9.currentMission <= 6) {
+        const el = document.getElementById('audio-tension');
+        if (el) el.components.sound.playSound();
+        console.log('[SIGNAL9] Tension sting fired');
+      }
+      this._scheduleTension(); // reschedule
+    }, delay);
+  },
+
+  // ── ENTITY FOOTSTEPS (positional, once, when Shrek is near) ──
+  playFootsteps(position) {
+    const el = document.getElementById('audio-footsteps');
+    if (!el) return;
+    // Move the audio entity to Shrek's position for spatialization
+    if (position) el.setAttribute('position', `${position.x} ${position.y} ${position.z}`);
+    el.components.sound.stopSound();
+    el.components.sound.playSound();
+  },
+
+  // ── JUMPSCARE SOUND (once, no loop) ──────────────────────
+  playJumpscare() {
+    const el = document.getElementById('audio-jumpscare');
+    if (el) {
+      el.components.sound.stopSound();
+      el.components.sound.playSound();
+    }
+  }
+};
+
+// ═══════════════════════════════════════════════════════════
+// SHREK / ENTITY MANAGER
+// Controls the Shrek model: visibility, position, shake anim,
+// footsteps trigger, jumpscare sequence.
+// ═══════════════════════════════════════════════════════════
+SIGNAL9.Entity = {
+  _shakeInterval: null,
+  _origPosition: null,
+
+  // Show Shrek in the world at a given position (entity-near event)
+  showNear(x, y, z) {
+    const shrek = document.getElementById('shrek-entity');
+    if (!shrek) return;
+    shrek.setAttribute('position', `${x} ${y} ${z}`);
+    shrek.setAttribute('visible', 'true');
+    // Face the player
+    const rig = document.getElementById('rig');
+    if (rig) {
+      const rpos = rig.getAttribute('position');
+      const dx = rpos.x - x;
+      const dz = rpos.z - z;
+      const angle = Math.atan2(dx, dz) * (180 / Math.PI);
+      shrek.setAttribute('rotation', `0 ${angle} 0`);
+    }
+    // Play footsteps (positional)
+    SIGNAL9.GameAudio.playFootsteps({x, y, z});
+  },
+
+  hide() {
+    const shrek = document.getElementById('shrek-entity');
+    if (shrek) shrek.setAttribute('visible', 'false');
+    this._stopShake();
+  },
+
+  // ── JUMPSCARE SEQUENCE ───────────────────────────────────
+  // Places Shrek directly in front of camera, shakes it, plays sound,
+  // then removes it after the scare duration.
+  triggerJumpscare(onComplete) {
+    const shrek = document.getElementById('shrek-entity');
+    if (!shrek) return;
+
+    // Position right in front of camera
+    const cam = document.getElementById('player-camera');
+    const rig = document.getElementById('rig');
+    const camWorldPos = new THREE.Vector3();
+    const camDir = new THREE.Vector3();
+    cam.object3D.getWorldPosition(camWorldPos);
+    cam.object3D.getWorldDirection(camDir);
+
+    // 1 metre in front of camera, at eye level
+    const spawnPos = {
+      x: camWorldPos.x + camDir.x * 1.0,
+      y: camWorldPos.y - 0.1,
+      z: camWorldPos.z + camDir.z * 1.0
+    };
+
+    shrek.setAttribute('position', `${spawnPos.x} ${spawnPos.y} ${spawnPos.z}`);
+    // Face back at player
+    const angle = Math.atan2(-camDir.x, -camDir.z) * (180 / Math.PI);
+    shrek.setAttribute('rotation', `0 ${angle} 0`);
+    shrek.setAttribute('visible', 'true');
+    this._origPosition = {...spawnPos};
+
+    // Play jumpscare audio
+    SIGNAL9.GameAudio.playJumpscare();
+
+    // Shake the model
+    this._startShake(spawnPos);
+
+    // Also shake the camera rig for extra impact
+    this._shakeCamera();
+
+    // End after 2.5 seconds
+    setTimeout(() => {
+      this._stopShake();
+      shrek.setAttribute('visible', 'false');
+      if (onComplete) onComplete();
+    }, 2500);
+  },
+
+  _startShake(basePos) {
+    this._stopShake();
+    const shrek = document.getElementById('shrek-entity');
+    if (!shrek) return;
+    this._shakeInterval = setInterval(() => {
+      const intensity = 0.06;
+      shrek.setAttribute('position', {
+        x: basePos.x + (Math.random() - 0.5) * intensity,
+        y: basePos.y + (Math.random() - 0.5) * intensity * 0.5,
+        z: basePos.z + (Math.random() - 0.5) * intensity
+      });
+    }, 40); // ~25fps shake
+  },
+
+  _stopShake() {
+    if (this._shakeInterval) {
+      clearInterval(this._shakeInterval);
+      this._shakeInterval = null;
+    }
+  },
+
+  _shakeCamera() {
+    const rig = document.getElementById('rig');
+    if (!rig) return;
+    let count = 0;
+    const origRot = rig.getAttribute('rotation') || {x:0,y:0,z:0};
+    const camShake = setInterval(() => {
+      count++;
+      rig.setAttribute('rotation', {
+        x: origRot.x + (Math.random()-0.5)*3,
+        y: origRot.y + (Math.random()-0.5)*3,
+        z: origRot.z + (Math.random()-0.5)*2
+      });
+      if (count > 20) {
+        clearInterval(camShake);
+        rig.setAttribute('rotation', origRot);
+      }
+    }, 80);
+  }
+};
+
+// ═══════════════════════════════════════════════════════════
+// CONTROLLER BUTTON SETUP
+// ═══════════════════════════════════════════════════════════
+function setupControllerButtons() {
+  const leftCtrl  = document.getElementById('left-hand');
+  const rightCtrl = document.getElementById('right-hand');
+  if (!leftCtrl || !rightCtrl) return;
+
+  // Y button - vignette toggle
+  leftCtrl.addEventListener('ybuttondown', () => {
+    const vign = document.getElementById('vignette-overlay');
+    if (vign) {
+      const vis = vign.getAttribute('visible');
+      vign.setAttribute('visible', vis === 'true' ? 'false' : 'true');
+    }
+  });
+
+  // X button - compliance checklist
+  leftCtrl.addEventListener('xbuttondown', () => {
+    const cl = document.getElementById('checklist-display');
+    if (cl) {
+      const vis = cl.getAttribute('visible');
+      cl.setAttribute('visible', vis === 'true' ? 'false' : 'true');
+      // Position near player camera
+      const cam = document.getElementById('player-camera');
+      if (cam) {
+        const pos = cam.getAttribute('position') || {x:0,y:1.6,z:0};
+        const rig = document.getElementById('rig');
+        const rpos = rig.getAttribute('position') || {x:0,y:0,z:0};
+        cl.setAttribute('position', `${rpos.x} ${pos.y} ${rpos.z - 0.6}`);
+      }
+    }
+  });
+
+  // A button - wrist menu
+  rightCtrl.addEventListener('abuttondown', () => {
+    const wm = document.getElementById('wrist-menu-entity');
+    if (wm) {
+      const vis = wm.getAttribute('visible');
+      wm.setAttribute('visible', vis === 'true' ? 'false' : 'true');
+    }
+  });
+
+  // B button - back / close any open panels
+  rightCtrl.addEventListener('bbuttondown', () => {
+    const panels = ['settings-panel','credits-panel','checklist-display','wrist-menu-entity'];
+    panels.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.setAttribute('visible','false');
+    });
+  });
+
+  // Trigger - raycaster click
+  rightCtrl.addEventListener('triggerdown', () => {
+    triggerRayClick(rightCtrl);
+  });
+  leftCtrl.addEventListener('triggerdown', () => {
+    triggerRayClick(leftCtrl);
+  });
+}
+
+function triggerRayClick(ctrlEl) {
+  const raycaster = ctrlEl.components && ctrlEl.components['raycaster'];
+  if (!raycaster) return;
+  const intersected = raycaster.intersectedEls;
+  if (intersected && intersected.length > 0) {
+    const target = intersected[0];
+    target.emit('triggerdown', null, false);
+    target.emit('click', null, false);
+  }
+}
+
+function updateWristMenu() {
+  const wm = document.getElementById('wrist-mission');
+  const ws = document.getElementById('wrist-signal');
+  if (wm) wm.setAttribute('text', `value:MISSION: ${SIGNAL9.currentMission};align:center;color:#888;width:0.6`);
+  if (ws) {
+    const v = SIGNAL9.Presence.value;
+    ws.setAttribute('text', `value:SIGNAL: ${v}%;align:center;color:${v>60?'#00ff00':v>30?'#ffaa00':'#ff4400'};width:0.6`);
+  }
+
+  // Attach checklist to left wrist when visible
+  const cl = document.getElementById('checklist-display');
+  const leftHand = document.getElementById('left-hand');
+  if (cl && leftHand && cl.getAttribute('visible') === 'true') {
+    const handPos = new THREE.Vector3();
+    leftHand.object3D.getWorldPosition(handPos);
+    cl.setAttribute('position', `${handPos.x} ${handPos.y+0.15} ${handPos.z}`);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// KEYBOARD FALLBACK (Desktop testing)
+// ═══════════════════════════════════════════════════════════
+document.addEventListener('keydown', (e) => {
+  switch(e.key) {
+    case '1': SIGNAL9.Scenes.load(1); break;
+    case '2': SIGNAL9.Scenes.load(2); break;
+    case '3': SIGNAL9.Scenes.load(3); break;
+    case '4': SIGNAL9.Scenes.load(4); break;
+    case '5': SIGNAL9.Scenes.load(5); break;
+    case '6': SIGNAL9.Scenes.load(6); break;
+    case '0': SIGNAL9.Scenes.load(0); break;
+    case 'c':
+      const cl = document.getElementById('checklist-display');
+      if (cl) cl.setAttribute('visible', cl.getAttribute('visible') === 'true' ? 'false' : 'true');
+      break;
+    case 'm':
+      const wm = document.getElementById('wrist-menu-entity');
+      if (wm) wm.setAttribute('visible', wm.getAttribute('visible') === 'true' ? 'false' : 'true');
+      break;
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
+// AUDIO CONTEXT RESUME on any click (browser policy)
+// ═══════════════════════════════════════════════════════════
+document.addEventListener('click', () => {
+  if (SIGNAL9.Audio.ctx) SIGNAL9.Audio.resume();
+}, { once: false });
+</script>
+
+</body>
+</html>
